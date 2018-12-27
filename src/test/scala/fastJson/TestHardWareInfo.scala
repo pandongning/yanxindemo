@@ -19,7 +19,7 @@ object TestHardWareInfo {
   def main(args: Array[String]): Unit = {
     val sparkConf: SparkConf = new SparkConf().setAppName("aa").setMaster("local[*]")
     val sparkContext = new SparkContext(sparkConf)
-    val data = sparkContext.parallelize(Array((30,"hadoop"), (71,"hive"), (11,"cat")))
+
 
 
 

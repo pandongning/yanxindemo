@@ -1,3 +1,5 @@
+package mulitipleFile
+
 import com.alibaba.fastjson.{JSON, JSONObject}
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.StringDeserializer
@@ -5,15 +7,23 @@ import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.streaming.kafka010.{ConsumerStrategies, KafkaUtils, LocationStrategies}
 import org.apache.spark.streaming.{Seconds, StreamingContext}
 import org.apache.spark.{SparkConf, SparkContext}
+import java.text.SimpleDateFormat
+import java.util.Date
+
+import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.mapred.lib.MultipleTextOutputFormat
+import org.apache.hadoop.mapred.{InvalidJobConfException, JobConf}
+import org.apache.hadoop.mapreduce.security.TokenCache
+import org.apache.spark.{HashPartitioner, SparkConf, SparkContext}
+import org.apache.spark.rdd.RDD;
 
 /**
   * 64273 pdn @create
   * 2018-12-25-11:49
   * kafkatohdfs
   *
-  * 其会建立多个平行的目录
   */
-object KafkaToHdfsJsonToObject {
+object KafkaToHdfsJsonToObjectMoreFile {
 
   case class appclass(app_info_four: String)
 
@@ -74,13 +84,21 @@ object KafkaToHdfsJsonToObject {
      })*/
 
 
+
+
     dataStreams.foreachRDD(rdd => {
-     rdd.saveAsTextFile(toHdfs+System.currentTimeMillis())
+      val values: RDD[(dataclass, String)] = rdd.map(x=>(x,""))
+      //rdd必须是(key,value)形式的
+      RDD.rddToPairRDDFunctions(values).partitionBy(new HashPartitioner(1)).saveAsHadoopFile(toHdfs, classOf[String], classOf[String], classOf[RDDMultipleTextOutputFormat])
     })
+
+
+
+
+
 
 //    dataStreams.saveAsTextFiles(toHdfs, "txt")
 
-    // Start the computation
     ssc.start()
     ssc.awaitTermination()
 
@@ -119,6 +137,44 @@ object KafkaToHdfsJsonToObject {
     val data = dataclass(app_info, hardware_info, uid, device_id)
 
     data
+  }
+
+
+  case class RDDMultipleTextOutputFormat() extends MultipleTextOutputFormat[Any, Any] {
+
+    val currentTime: Date = new Date()
+    val formatter = new SimpleDateFormat("yyyy-MM-dd-HHmmss");
+    val dateString = formatter.format(currentTime);
+
+    //自定义保存文件名
+    override def generateFileNameForKeyValue(key: Any, value: Any, name: String): String = {
+      //key 和 value就是rdd中的(key,value)，name是part-00000默认的文件名
+      //保存的文件名称，这里用字符串拼接系统生成的时间戳来区分文件名，可以自己定义
+      "HTLXYFY" + dateString
+    }
+
+    override def checkOutputSpecs(ignored: FileSystem, job: JobConf): Unit = {
+      val name: String = job.get(org.apache.hadoop.mapreduce.lib.output.FileOutputFormat.OUTDIR)
+      var outDir: Path = if (name == null) null else new Path(name)
+      //当输出任务不等于0 且输出的路径为空，则抛出异常
+      if (outDir == null && job.getNumReduceTasks != 0) {
+        throw new InvalidJobConfException("Output directory not set in JobConf.")
+      }
+      //当有输出任务和输出路径不为null时
+      if (outDir != null) {
+        val fs: FileSystem = outDir.getFileSystem(job)
+        outDir = fs.makeQualified(outDir)
+        outDir = new Path(job.getWorkingDirectory, outDir)
+        job.set(org.apache.hadoop.mapreduce.lib.output.FileOutputFormat.OUTDIR, outDir.toString)
+        TokenCache.obtainTokensForNamenodes(job.getCredentials, Array[Path](outDir), job)
+        //下面的注释掉，就不会出现这个目录已经存在的提示了
+        /* if (fs.exists(outDir)) {
+             throw new FileAlreadyExistsException("Outputdirectory"
+                     + outDir + "alreadyexists");
+         }
+      }*/
+      }
+    }
   }
 
 }

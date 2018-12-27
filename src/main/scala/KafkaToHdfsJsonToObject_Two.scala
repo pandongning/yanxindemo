@@ -1,7 +1,6 @@
 import com.alibaba.fastjson.{JSON, JSONObject}
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.StringDeserializer
-import org.apache.spark.sql.SaveMode
 import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.streaming.kafka010.{ConsumerStrategies, KafkaUtils, LocationStrategies}
 import org.apache.spark.streaming.{Seconds, StreamingContext}
@@ -43,6 +42,7 @@ object KafkaToHdfsJsonToObject_Two {
       ConsumerConfig.ENABLE_AUTO_COMMIT_CONFIG -> "false",
       ConsumerConfig.AUTO_OFFSET_RESET_CONFIG -> "earliest"
 
+
     )
 
 
@@ -55,10 +55,9 @@ object KafkaToHdfsJsonToObject_Two {
 
     val dataStreams = values.map(value => jsonToObject(value))
 
-
+  /*  //测试解析是否成功
     val siminformation: DStream[String] = dataStreams.map(Data => Data.hardware_info.hardware_info_four.getSiminformation)
-    siminformation.print()
-    //      dataStreams.print()
+    siminformation.print()*/
 
 
     /*val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
@@ -69,15 +68,12 @@ object KafkaToHdfsJsonToObject_Two {
     })*/
 
 
-    /*  lines.foreachRDD(rdd => {
-        rdd.foreachPartition(partitionOfRecords =>{
-          partitionOfRecords
-        })
-      })*/
+    dataStreams.foreachRDD(rdd => {
+        rdd.saveAsTextFile(toHdfs)
+      })
 
-    //   dataStreams.saveAsTextFiles(toHdfs,"txt")
 
-    // Start the computation
+
     ssc.start()
     ssc.awaitTermination()
 
