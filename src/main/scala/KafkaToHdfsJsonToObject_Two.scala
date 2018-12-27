@@ -13,18 +13,14 @@ import org.apache.spark.{SparkConf, SparkContext}
   * kafkatohdfs
   *
   */
-object KafkaToHdfsJsonToObject {
+object KafkaToHdfsJsonToObject_Two {
 
   case class appclass(app_info_four: String)
 
   case class appInfoclass(app_info_one: String, app_info_two: String, app_info_there: String, app: appclass)
 
-  case class hardWareInfoFourClass(cpuCurFreq: String, appVersion: String, isEmulator: String, Memory: String, cpuArchitecture: String, isRooted: String, appSignatures: String,
-                                   BluetoothMAC: String, Build: String, NetworkType: String, ExternalStorage: String, ethIp: String, USB: String, appName: String,
-                                   cpuSerial: String, ip: String, Time: String, AndroidId: String, cpuName: String, Siminformation: String, SysFeatures: String, cpuMaxFreq: String,
-                                   appPackageName: String, Display: String, cpuMinFreq: String)
 
-  case class hardwareInfoclass(hardware_info_one: String, hardware_info_two: String, hardware_info_there: String, hardware_info_four: hardWareInfoFourClass)
+  case class hardwareInfoclass(hardware_info_one: String, hardware_info_two: String, hardware_info_there: String, hardware_info_four: HardWareInfoFourClassJava)
 
   case class dataclass(app_info: appInfoclass, hardware_info: hardwareInfoclass, uid: String, device_id: String)
 
@@ -60,18 +56,17 @@ object KafkaToHdfsJsonToObject {
     val dataStreams = values.map(value => jsonToObject(value))
 
 
+    val siminformation: DStream[String] = dataStreams.map(Data => Data.hardware_info.hardware_info_four.getSiminformation)
+    siminformation.print()
+    //      dataStreams.print()
 
-    /*  val device_id: DStream[String] = dataStreams.map(Data => Data.hardware_info.hardware_info_four.cpuCurFreq)
-      device_id.print()
-      dataStreams.print()*/
 
-
-    val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
+    /*val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
     import sqlContext.implicits._
 
     dataStreams.foreachRDD(rddBatch => {
-      rddBatch.toDF("app_info","hardware_info","uid","device_id").coalesce(1).write.mode(SaveMode.Append).save(toHdfs)
-    })
+      rddBatch.toDF("app_info", "hardware_info", "uid", "device_id").coalesce(1).write.mode(SaveMode.Append).save(toHdfs)
+    })*/
 
 
     /*  lines.foreachRDD(rdd => {
@@ -116,7 +111,12 @@ object KafkaToHdfsJsonToObject {
     val app = appclass(app_info_four_app)
     val app_info = appInfoclass(app_info_one, app_info_two, app_info_there, app)
     //    对应解析的是hardware_info_strings(3)字段
-    var hardWareInfoFourClazz: hardWareInfoFourClass = JSON.parseObject(hardware_info_four, classOf[hardWareInfoFourClass])
+    val hardWareInfoFourClazz: HardWareInfoFourClassJava = JSON.parseObject(hardware_info_four, classOf[HardWareInfoFourClassJava])
+    val hardware_info_four_jSONObject: JSONObject = JSON.parseObject(hardware_info_four)
+    hardWareInfoFourClazz.setSiminformation(hardware_info_four_jSONObject.getString("Sim information"))
+    hardWareInfoFourClazz.setSysFeatures(hardware_info_four_jSONObject.getString("Sys Features"))
+
+
     val hardware_info = hardwareInfoclass(hardware_info_one, hardware_info_two, hardware_info_there, hardWareInfoFourClazz)
     val data = dataclass(app_info, hardware_info, uid, device_id)
 

@@ -1,5 +1,3 @@
-package jsontoobject;
-
 import java.io.Serializable;
 
 /**
@@ -8,7 +6,7 @@ import java.io.Serializable;
  * kafkatohdfs
  * jsontoobject
  */
-public class HardWareInfoFourClass implements Serializable {
+public class HardWareInfoFourClassJava implements Serializable {
     private String	cpuCurFreq;
     private String	appVersion;
     private String	isEmulator;
