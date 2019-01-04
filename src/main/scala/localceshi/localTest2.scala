@@ -1,19 +1,30 @@
+package localceshi
+
+import java.text.SimpleDateFormat
+import java.util.Date
+
 import com.alibaba.fastjson.{JSON, JSONObject}
+import org.apache.hadoop.fs.{FileSystem, Path}
+import org.apache.hadoop.mapred.lib.MultipleTextOutputFormat
+import org.apache.hadoop.mapred.{InvalidJobConfException, JobConf}
+import org.apache.hadoop.mapreduce.security.TokenCache
 import org.apache.kafka.clients.consumer.ConsumerConfig
 import org.apache.kafka.common.serialization.StringDeserializer
+import org.apache.spark.rdd.RDD
 import org.apache.spark.streaming.dstream.DStream
 import org.apache.spark.streaming.kafka010.{ConsumerStrategies, KafkaUtils, LocationStrategies}
 import org.apache.spark.streaming.{Seconds, StreamingContext}
-import org.apache.spark.{SparkConf, SparkContext}
+import org.apache.spark.{HashPartitioner, SparkConf, SparkContext};
+
 
 /**
   * 64273 pdn @create
   * 2018-12-25-11:49
   * kafkatohdfs
   *
-  * 其会建立多个平行的目录
+  * 解析完之后统一的输出
   */
-object KafkaToHdfsJsonToObject {
+object localTest2 {
 
   case class appclass(app_info_four: String)
 
@@ -29,13 +40,14 @@ object KafkaToHdfsJsonToObject {
   case class dataclass(app_info: appInfoclass, hardware_info: hardwareInfoclass, uid: String, device_id: String)
 
   def main(args: Array[String]): Unit = {
+    StreamingExamples.setStreamingLogLevels()
     val sparkConf: SparkConf = new SparkConf().setAppName("kafka_riskDeviceFingerprin_toHdfs").setMaster("local[*]")
     val sparkContext = new SparkContext(sparkConf)
     sparkContext.setLogLevel("ERROR")
     val ssc = new StreamingContext(sparkContext, Seconds(10))
 
 
-    val sourcetopic = "riskDeviceFingerprint"
+    val sourcetopic = "f2"
     val toHdfs = "hdfs://192.168.25.10:9000/kafkaToSpark"
 
     //
@@ -60,27 +72,13 @@ object KafkaToHdfsJsonToObject {
     val dataStreams = values.map(value => jsonToObject(value))
 
 
-
-    /*  val device_id: DStream[String] = dataStreams.map(Data => Data.hardware_info.hardware_info_four.cpuCurFreq)
-      device_id.print()
-      dataStreams.print()*/
-
-
-    /* val sqlContext = new org.apache.spark.sql.SQLContext(sparkContext)
-     import sqlContext.implicits._
-
-     dataStreams.foreachRDD(rddBatch => {
-       rddBatch.toDF("app_info","hardware_info","uid","device_id").coalesce(1).write.mode(SaveMode.Append).save(toHdfs)
-     })*/
-
-
     dataStreams.foreachRDD(rdd => {
-     rdd.saveAsTextFile(toHdfs+System.currentTimeMillis())
+      val values: RDD[(dataclass, String)] = rdd.map(x => (x, ""))
+      //rdd必须是(key,value)形式的
+      RDD.rddToPairRDDFunctions(values).partitionBy(new HashPartitioner(4)).saveAsHadoopFile(toHdfs, classOf[String], classOf[String], classOf[RDDMultipleTextOutputFormat])
     })
 
-//    dataStreams.saveAsTextFiles(toHdfs, "txt")
 
-    // Start the computation
     ssc.start()
     ssc.awaitTermination()
 
@@ -121,15 +119,42 @@ object KafkaToHdfsJsonToObject {
     data
   }
 
+
+  case class RDDMultipleTextOutputFormat() extends MultipleTextOutputFormat[Any, Any] {
+
+    val currentTime: Date = new Date()
+    val formatter = new SimpleDateFormat("yyyy-MM-dd-HHmmss");
+    val dateString = formatter.format(currentTime);
+
+    //自定义数据输出的文件名
+    override def generateFileNameForKeyValue(key: Any, value: Any, name: String): String = {
+      //key 和 value就是rdd中的(key,value)，name是part-00000默认的文件名
+      //保存的文件名称，这里用字符串拼接系统生成的时间戳来区分文件名，可以自己定义
+      "riskDeviceFingerprint" + dateString
+    }
+
+    override def checkOutputSpecs(ignored: FileSystem, job: JobConf): Unit = {
+      val name: String = job.get(org.apache.hadoop.mapreduce.lib.output.FileOutputFormat.OUTDIR)
+      var outDir: Path = if (name == null) null else new Path(name)
+      //当输出任务不等于0 且输出的路径为空，则抛出异常
+      if (outDir == null && job.getNumReduceTasks != 0) {
+        throw new InvalidJobConfException("Output directory not set in JobConf.")
+      }
+      //当有输出任务和输出路径不为null时
+      if (outDir != null) {
+        val fs: FileSystem = outDir.getFileSystem(job)
+        outDir = fs.makeQualified(outDir)
+        outDir = new Path(job.getWorkingDirectory, outDir)
+        job.set(org.apache.hadoop.mapreduce.lib.output.FileOutputFormat.OUTDIR, outDir.toString)
+        TokenCache.obtainTokensForNamenodes(job.getCredentials, Array[Path](outDir), job)
+        //下面的注释掉，就不会出现这个目录已经存在的提示了
+        /* if (fs.exists(outDir)) {
+             throw new FileAlreadyExistsException("Outputdirectory"
+                     + outDir + "alreadyexists");
+         }
+      }*/
+      }
+    }
+  }
+
 }
-
-
-
-
-
-
-
-
-
-
-
