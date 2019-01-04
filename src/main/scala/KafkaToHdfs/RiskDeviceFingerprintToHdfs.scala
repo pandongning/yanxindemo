@@ -38,7 +38,8 @@ object RiskDeviceFingerprintToHdfs {
 
 
   def main(args: Array[String]): Unit = {
-    val sparkConf: SparkConf = new SparkConf().setAppName("kafka_riskDeviceFingerprin_toHdfs").setMaster("local[*]")
+//    官方推荐，task数量，设置成spark Application 总cpu core数量的2~3倍 ，比如150个cpu core ，基本设置 task数量为 300~ 500.
+    val sparkConf: SparkConf = new SparkConf().setAppName("kafka_riskDeviceFingerprin_toHdfs").setMaster("local[*]").set("spark.defalut.parallelism","500")
     val sparkContext = new SparkContext(sparkConf)
     sparkContext.setLogLevel("ERROR")
     val ssc = new StreamingContext(sparkContext, Seconds(10))
