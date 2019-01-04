@@ -1,4 +1,4 @@
-package localceshi
+package KafkaToHdfs
 
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -21,7 +21,7 @@ import org.apache.spark.{HashPartitioner, SparkConf, SparkContext};
   * kafkatohdfs
   * 解析和存储在同一个循环批次里面进行
   */
-object localTest1 {
+object RiskDeviceFingerprintToHdfs {
 
   case class appclass(app_info_four: String)
 
@@ -62,43 +62,37 @@ object localTest1 {
     )
 
 
-    /*val values: DStream[String] = messages.map(_.value())
-
-    val valueToClass = values.map(value => jsonToObject(value))*/
-
-
-    /*
-      代码在控制台直接输出，用于测试
-    val device_id: DStream[String] = dataStreams.map(Data => Data.hardware_info.hardware_info_four.cpuCurFreq)
-      device_id.print()
-      dataStreams.print()*/
-
-
     /*
     *  此时对于一个批次的Rdd里面的元素进行解析，并将这个批次里面的数据统一进行输出
+    *  如果遇见异常则需要手动的停止程序，下面是调用stop方法去手动的停止
     * */
-    messagesStreaming.foreachRDD(rdd => {
-      //获取该RDD对于的偏移量
-      val offsetRanges = rdd.asInstanceOf[HasOffsetRanges].offsetRanges
-      //  解析
-      val valueToDataClass: RDD[dataclass] = rdd.map(record => jsonToObject(record.value()))
-      //rdd必须是(key,value)形式的.所以此处故意将value设置为空字符串
-      val pairRdd: RDD[(dataclass, String)] = valueToDataClass.map(valueTokey => (valueTokey, ""))
-      println(pairRdd.partitions.size)
-      pairRdd.partitionBy(new HashPartitioner(1)).saveAsHadoopFile(toHdfs, classOf[String], classOf[String], classOf[RDDMultipleTextOutputFormat])
+    try {
+      messagesStreaming.foreachRDD(rdd => {
+        //获取该RDD对于的偏移量
+        val offsetRanges = rdd.asInstanceOf[HasOffsetRanges].offsetRanges
+        //  解析
+        val valueToDataClass: RDD[dataclass] = rdd.map(record => jsonToObject(record.value()))
+        //rdd必须是(key,value)形式的.所以此处故意将value设置为空字符串
+        val pairRdd: RDD[(dataclass, String)] = valueToDataClass.map(valueTokey => (valueTokey, ""))
+        println(pairRdd.partitions.size)
+        pairRdd.partitionBy(new HashPartitioner(1)).saveAsHadoopFile(toHdfs, classOf[String], classOf[String], classOf[RDDMultipleTextOutputFormat])
 
-      //更新偏移量(将偏移量更新Kafka)。其调用的是kafka的异步提交的api。将偏移量保存到kafka里面
-      messagesStreaming.asInstanceOf[CanCommitOffsets].commitAsync(offsetRanges)
-    })
+        //更新偏移量(将偏移量更新Kafka)。其调用的是kafka的异步提交的api。将偏移量保存到kafka里面
+        messagesStreaming.asInstanceOf[CanCommitOffsets].commitAsync(offsetRanges)
+      })
+    } catch {
+      case e: Exception => println(e)
+    } finally {
+      ssc.stop()
+    }
 
-
-    //    这样保存会出现许多的文件
-    //    messagesStreaming.saveAsTextFiles(toHdfs, "txt")
 
     ssc.start()
     ssc.awaitTermination()
 
   }
+
+  //TODO 测试其他的序列化方法的性能
 
 
   /**

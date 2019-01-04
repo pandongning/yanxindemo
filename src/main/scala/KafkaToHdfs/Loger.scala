@@ -1,10 +1,10 @@
-package localceshi
+package KafkaToHdfs
 
 import org.apache.log4j.{Level, Logger}
 import org.apache.spark.internal.Logging
 
 /** Utility functions for Spark Streaming examples. */
-object StreamingExamples extends Logging {
+object Loger extends Logging {
   /** Set reasonable logging levels for streaming if the user has not configured log4j. */
   def setStreamingLogLevels() {
     val log4jInitialized = Logger.getRootLogger.getAllAppenders.hasMoreElements
